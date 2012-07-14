@@ -37,6 +37,9 @@ define("APC_TTL", 0);
 
 $queryString = getenv('QUERY_STRING') ? urldecode(getenv('QUERY_STRING')) : '';
 if (isset($queryString) && !empty($queryString)) {
+    
+    date_default_timezone_set("Etc/GMT");
+
     $yuiFiles    = explode("&", $queryString);
     $contentType = strpos($yuiFiles[0], ".js") ? 'application/x-javascript' : 
         ' text/css';
