@@ -50,6 +50,7 @@ define('YUI_SUPERSEDES', 'supersedes');
 define('YUI_TAGS', 'TAGS');
 define('YUI_TYPE', 'type');
 define('YUI_URL', 'url');
+define('YUI_USE','use');
 
 /**
  * The YUI PHP loader base class which provides dynamic server-side loading for
@@ -346,7 +347,7 @@ class YAHOO_util_Loader
                 "which version of YUI to use!"
             );
         }
-        
+        $this->yuiVersion = $yuiVersion;
         /* 
         * Include the metadata config file that corresponds to the requested YUI
         * version Note: we attempt to find a prebuilt config_{version}.php file
@@ -378,7 +379,9 @@ class YAHOO_util_Loader
         $this->apcAvail   = function_exists('apc_fetch');
         $this->jsonAvail  = function_exists('json_encode');
         $this->customModulesInUse = empty($modules) ? false : true;
-        $this->base = $yui_current[YUI_BASE];
+        // if(intval(preg_replace('/\./','',$yuiVersion))<340){
+        //     $this->base = $yui_current[YUI_BASE];
+        // }
         $this->comboDefaultVersion = $yuiVersion;
         $this->fullCacheKey = null;
         $cache = null;
@@ -402,7 +405,7 @@ class YAHOO_util_Loader
             if ($noYui) {
                 $this->modules = array();
             } else {
-                $this->modules = $yui_current['moduleInfo'];
+               $this->modules = $yui_current;
             }
 
             if ($modules) {
@@ -411,7 +414,7 @@ class YAHOO_util_Loader
                 );
             }
 
-            $this->skin = $yui_current[YUI_SKIN];
+            $this->skin = array( 'defaultSkin' => 'sam', 'after' => array(),'base' => 'assets/skins/');
             $this->skin['overrides'] = array();
             $this->skin[YUI_PREFIX] = "skin-";
             $this->filters = array(
@@ -470,7 +473,21 @@ class YAHOO_util_Loader
         //Expects N-number of named components to load 
         $args = func_get_args();
         foreach ($args as $arg) {
-            $this->loadSingle($arg);
+            if (isset($this->modules[$arg])) {
+                if (isset($this->modules[$arg][YUI_USE])) {
+                    if (is_array($this->modules[$arg][YUI_USE])) {
+                        foreach ($this->modules[$arg][YUI_USE] as $name) {
+                            $this->loadSingle($name);
+                        }
+                    } else {
+                        if ($this->modules[$arg][YUI_USE] != '') {
+                            $this->loadSingle($this->modules[$arg][YUI_USE]);
+                        }
+                    }
+                } else {
+                    $this->loadSingle($arg);
+                }
+            }
         }
     }
     
@@ -554,18 +571,18 @@ class YAHOO_util_Loader
             // module-specific
             if (isset($skin[2])) {
                 $dep = $this->modules[$skin[2]];
-                $package = (isset($dep[YUI_PKG])) ? $dep[YUI_PKG] : $skin[2];
-                $path = $package . '/' . $s[YUI_BASE] . $skin[1] . '/' . 
-                    $skin[2] . '.css';
+                $skin3 = (isset($skin[3]) && $skin[3] != '') ? '-'.$skin[3] : '';
+                $component = $skin[2] . $skin3 ;
+                $path = $component . '/' . $s[YUI_BASE] . $skin[1] . '/' . $component . '.css';
                 $this->modules[$skinName] = array(
-                        "name" => $skinName,
-                        "type" => YUI_CSS,
-                        "path" => $path,
-                        "after" => $s[YUI_AFTER]
-                    );
-
-            // rollup skin
-            } else {
+                    "name" => $skinName,
+                    "type" => YUI_CSS,
+                    "path" => $path,
+                    "after" => $s[YUI_AFTER]
+                );
+                // rollup skin
+              } else {
+                //ToDo what about rollup skins in yui > 3.4.x 
                 $path = $s[YUI_BASE] . $skin[1] . '/' . $s[YUI_PATH];
                 $newmod = array(
                         "name" => $skinName,
@@ -976,6 +993,25 @@ class YAHOO_util_Loader
         //Add any requirements defined on the module itself
         if (isset($m[YUI_REQUIRES])) {
             $origreqs = $m[YUI_REQUIRES];
+
+            $requirements = array();
+            foreach ($origreqs as $arg) {
+                if (isset($this->modules[$arg][YUI_USE])) {
+                    if (is_array($this->modules[$arg][YUI_USE])) {
+                        foreach ($this->modules[$arg][YUI_USE] as $name) {
+                            $requirements[$name] = $name;
+                        }
+                    } else {
+                        if ($this->modules[$arg][YUI_USE] != '') {
+                            $requirements[$arg] = $this->modules[$arg][YUI_USE];
+                        }
+                    }
+                } else {
+                    $requirements[$arg] = $arg;
+                }               
+            }
+            $origreqs = $requirements;
+            
             foreach ($origreqs as $r) {
                 if (!isset($reqs[$r])) {
                     $reqs[$r] = true;
